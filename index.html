@@ -1,0 +1,1021 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}body{margin:0;font:14px system-ui}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Chatprint</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<style>
+/* Layout: a single scrolling report, sticky section nav, tiles of each day form the "print" */
+:root{
+  --bg:#F4F6FB; --surface:#FFFFFF; --sunk:#EBEEF6; --ink:#121625; --muted:#596079; --line:#DDE1EC;
+  --accent:#2B59FF; --accent-ink:#FFFFFF; --cell:#E6E9F3; --good:#13A388; --bad:#E5484D;
+  --bubble-me:#2B59FF; --bubble-me-ink:#FFFFFF; --bubble-them:#E6E9F3;
+  --f-display:"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --f-body:"Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0D1018; --surface:#161A26; --sunk:#10131D; --ink:#EDF0F7; --muted:#99A0B6; --line:#262B3B;
+  --accent:#6E8BFF; --accent-ink:#0D1018; --cell:#1D2232; --good:#3CC9A7; --bad:#FF6B6F;
+  --bubble-me:#4D6EFF; --bubble-me-ink:#FFFFFF; --bubble-them:#232839; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0D1018; --surface:#161A26; --sunk:#10131D; --ink:#EDF0F7; --muted:#99A0B6; --line:#262B3B;
+  --accent:#6E8BFF; --accent-ink:#0D1018; --cell:#1D2232; --good:#3CC9A7; --bad:#FF6B6F;
+  --bubble-me:#4D6EFF; --bubble-me-ink:#FFFFFF; --bubble-them:#232839; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+.ptabs{display:flex;gap:6px;flex-wrap:wrap}
+.ptabs button{display:flex;align-items:center;gap:6px;border-radius:999px;padding:6px 12px;font-size:14px}
+.ptabs button[aria-pressed="true"]{border-color:var(--ink);background:var(--sunk)}
+.glist{display:grid;gap:8px}
+.glist a{display:flex;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;color:var(--ink);text-decoration:none;background:var(--surface)}
+.glist a:hover{border-color:var(--accent)}
+.sharebox{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sharebox input{flex:1;min-width:220px;font-family:var(--f-mono);font-size:12px}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 64px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:1040px;margin:0 auto}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;letter-spacing:-.01em}
+h2{font-size:clamp(22px,3.2vw,30px);font-weight:700}
+h3{font-size:17px;font-weight:700}
+p{margin:0}
+.muted{color:var(--muted)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+button,.btn{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:9px 14px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:focus-visible,select:focus-visible,textarea:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button:disabled{opacity:.5;cursor:default}
+select,textarea,input[type=text]{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+
+/* top bar */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:var(--bg);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;gap:12px;padding-block:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--f-display);font-weight:800;font-size:20px;margin-right:auto}
+.brand i{display:grid;grid-template-columns:repeat(3,6px);gap:2px}
+.brand i b{width:6px;height:6px;border-radius:1.5px;background:var(--accent)}
+.brand i b:nth-child(2n){background:#FF5A4E}.brand i b:nth-child(3n){opacity:.35}
+.secnav{display:flex;gap:4px;overflow-x:auto;padding-block:6px 10px;scrollbar-width:none}
+.secnav a{font-size:13px;font-weight:600;color:var(--muted);text-decoration:none;padding:6px 10px;border-radius:8px;white-space:nowrap}
+.secnav a:hover{color:var(--ink);background:var(--sunk)}
+
+/* loader */
+.loader{margin-top:20px;border:1.5px dashed var(--line);border-radius:16px;padding:20px;background:var(--surface);display:grid;gap:14px}
+.loader.drag{border-color:var(--accent);background:var(--sunk)}
+.loader-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.loader details summary{cursor:pointer;font-weight:600}
+.loader details ul{margin:8px 0 0;padding-left:18px;color:var(--muted)}
+.loader textarea{width:100%;min-height:90px;resize:vertical;font-family:var(--f-mono);font-size:12px}
+.err{color:var(--bad);font-weight:600}
+.banner{margin-top:14px;padding:10px 14px;border-radius:10px;background:var(--sunk);font-size:13px;color:var(--muted)}
+
+/* cover */
+.cover{padding-block:36px 8px;display:grid;gap:10px}
+.cover h1{font-size:clamp(34px,6vw,60px);font-weight:800;line-height:1.02}
+.cover h1 .amp{color:var(--muted);font-weight:500}
+.meta{display:flex;gap:22px;flex-wrap:wrap;margin-top:6px}
+.meta div{display:grid}
+.meta b{font-family:var(--f-display);font-size:22px}
+
+section.block{margin-top:44px;display:grid;gap:16px;scroll-margin-top:120px}
+.head{display:grid;gap:4px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;min-width:0}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))}
+.tiles{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:2px}
+.tile b{font-family:var(--f-display);font-size:26px;font-weight:700;line-height:1.1}
+.tile span{font-size:12px;color:var(--muted)}
+.dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+svg text{fill:var(--muted);font-family:var(--f-mono);font-size:11px}
+.chartbox{overflow-x:auto}
+.chartbox svg{display:block;width:100%;min-width:520px;height:auto}
+
+/* bars */
+.bars{display:grid;gap:10px}
+.bar{display:grid;grid-template-columns:minmax(80px,160px) 1fr auto;gap:10px;align-items:center;font-size:14px}
+.bar .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.bar .track{height:12px;background:var(--cell);border-radius:6px;overflow:hidden}
+.bar .fill{height:100%;border-radius:6px}
+
+/* heatmap */
+.heat{display:grid;grid-template-columns:34px repeat(24,minmax(10px,1fr));gap:3px;min-width:420px}
+.heat div{aspect-ratio:1;border-radius:3px;background:var(--cell)}
+.heat .lab{background:none;aspect-ratio:auto;font-family:var(--f-mono);font-size:10px;color:var(--muted);align-self:center}
+
+/* table */
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:400}
+td:first-child{font-weight:600}
+
+/* words */
+.cloud{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;line-height:1.15}
+.cloud span{font-family:var(--f-display);font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:13px;padding:3px 9px;border-radius:999px;background:var(--sunk);border:1px solid var(--line)}
+
+/* AI */
+.ai-empty{display:grid;gap:10px;justify-items:start}
+.shimmer{height:12px;border-radius:6px;background:linear-gradient(90deg,var(--cell),var(--sunk),var(--cell));background-size:200% 100%;animation:sh 1.4s infinite linear}
+@keyframes sh{to{background-position:-200% 0}}
+@media (prefers-reduced-motion: reduce){.shimmer{animation:none}}
+.lede{font-family:var(--f-display);font-size:clamp(19px,2.4vw,24px);font-weight:500;line-height:1.35}
+.quote{border-left:3px solid var(--accent);padding:4px 0 4px 12px;font-style:italic}
+.score{display:flex;align-items:baseline;gap:6px}
+.score b{font-family:var(--f-display);font-size:64px;line-height:1;font-weight:800}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:var(--sunk);border:1px solid var(--line)}
+.person-card{display:grid;gap:10px}
+.person-card .kv{display:grid;gap:2px}
+.person-card .kv b{font-family:var(--f-display);font-size:17px}
+.verse{font-family:var(--f-display);font-size:19px;white-space:pre-line;line-height:1.5}
+canvas#mosaic{width:100%;display:block;border-radius:10px}
+
+/* twin */
+.phone{background:var(--surface);border:1px solid var(--line);border-radius:22px;display:grid;grid-template-rows:auto 1fr auto;height:min(640px,80vh);overflow:hidden}
+.phone-top{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.avatar{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-weight:700;color:#fff;flex:none}
+.thread{overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:4px}
+.msg{max-width:78%;padding:8px 12px;border-radius:18px;white-space:pre-wrap;word-wrap:break-word;font-size:15px;line-height:1.35}
+.msg.me{align-self:flex-end;background:var(--bubble-me);color:var(--bubble-me-ink);border-bottom-right-radius:6px}
+.msg.them{align-self:flex-start;background:var(--bubble-them);border-bottom-left-radius:6px}
+.msg.gap{margin-top:8px}
+.typing{align-self:flex-start;background:var(--bubble-them);border-radius:18px;padding:10px 14px;display:flex;gap:4px}
+.typing i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:bl 1s infinite}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes bl{50%{opacity:.25}}
+.sys{align-self:center;font-size:12px;color:var(--muted);text-align:center;max-width:90%;padding:6px}
+.composer{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line)}
+.composer input{flex:1;min-width:0;border-radius:999px;padding:10px 14px}
+.composer button{border-radius:999px}
+.twin-side{display:grid;gap:12px;align-content:start}
+.twin-side label{display:grid;gap:4px;font-size:13px;font-weight:600}
+.answer{white-space:pre-wrap}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row input{flex:1;min-width:200px}
+footer{margin-top:56px;color:var(--muted);font-size:13px}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><i><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b></i>Chatprint</div>
+    <button id="shareBtn" class="primary">Share report</button>
+    <button id="openLoad">Load a chat</button>
+  </div>
+  <div class="wrap"><nav class="secnav" id="secnav">
+    <a href="#overview">Overview</a><a href="#mood">Mood</a><a href="#dynamic">Dynamic</a><a href="#activity">Activity</a>
+    <a href="#texting">How you text</a><a href="#person">Each person</a><a href="#words">Words</a><a href="#portrait">Portrait</a><a href="#people">People</a>
+    <a href="#twin">Text their twin</a><a href="#ask">Ask</a><a href="#gallery">Shared reports</a>
+  </nav></div>
+</header>
+
+<main class="wrap">
+  <section class="loader" id="loader" hidden>
+    <div class="head"><h3>Load your chat export</h3><p class="muted">Drop a file here or pick one. Everything is counted in your browser. Only the AI sections send excerpts to Claude, on your own account.</p></div>
+    <div class="loader-row">
+      <label class="btn" for="file" style="display:inline-block">Choose file</label>
+      <input id="file" type="file" accept=".txt,.zip,.json" multiple hidden>
+      <span class="muted">WhatsApp .txt or .zip · Instagram/Messenger .json · Telegram .json · Discord .json · iMessage (imessage-exporter .txt)</span>
+    </div>
+    <details><summary>How do I export my chat?</summary><ul>
+      <li><b>WhatsApp:</b> open the chat → tap the name → Export chat → Without media.</li>
+      <li><b>Instagram:</b> Settings → Accounts Center → Your information → Download your information → Messages, JSON format. Pick every message_N.json for a chat.</li>
+      <li><b>Telegram Desktop:</b> chat menu → Export chat history → format JSON.</li>
+      <li><b>Discord:</b> export with DiscordChatExporter as JSON.</li>
+      <li><b>iMessage:</b> run imessage-exporter with <span class="mono">-f txt</span> and pick the conversation file.</li>
+    </ul></details>
+    <textarea id="paste" placeholder="…or paste the exported text here"></textarea>
+    <div class="loader-row"><button class="primary" id="analyzePaste">Analyze pasted text</button><button id="useSample">Use the sample chat</button><span id="loadErr" class="err"></span></div>
+  </section>
+
+  <div id="shareOut" class="card sharebox" style="margin-top:14px" hidden></div>
+  <div id="sharedBanner" class="banner" hidden></div>
+  <div id="sampleBanner" class="banner">You're viewing a sample chat between two made-up friends, Maya and Jordan. Load your own export to analyze it.</div>
+
+  <div class="cover">
+    <div class="eyebrow" id="fp">Chatprint</div>
+    <h1 id="title">…</h1>
+    <div class="meta" id="meta"></div>
+  </div>
+
+  <section class="block" id="overview">
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section class="block" id="mood">
+    <div class="head"><span class="eyebrow">Mood</span><h2>How each of you felt, week by week</h2><p class="muted">Scored from the words and emoji in every message. Above the line reads brighter, below reads heavier.</p></div>
+    <div class="card"><div class="legend" id="moodLegend"></div><div class="chartbox" id="moodChart"></div><p class="muted" id="moodNote" style="margin-top:8px"></p></div>
+  </section>
+
+  <section class="block" id="dynamic">
+    <div class="head"><span class="eyebrow">Dynamic</span><h2>The dynamic between you</h2></div>
+    <div id="dynBox"></div>
+  </section>
+
+  <section class="block" id="activity">
+    <div class="head"><span class="eyebrow">Activity</span><h2>Who sends more, and when</h2></div>
+    <div class="grid g2">
+      <div class="card"><h3 style="margin-bottom:12px">Messages sent</h3><div class="bars" id="bars"></div></div>
+      <div class="card"><h3 style="margin-bottom:12px">When you talk</h3><div class="chartbox"><div class="heat" id="heat"></div></div><p class="muted" id="heatNote" style="margin-top:10px;font-size:13px"></p></div>
+    </div>
+    <div class="card"><h3>Messages per week</h3><div class="legend" id="weekLegend" style="margin-block:8px"></div><div class="chartbox" id="weekChart"></div></div>
+  </section>
+
+  <section class="block" id="texting">
+    <div class="head"><span class="eyebrow">Counted from your messages</span><h2>How you text</h2><p class="muted">A new conversation starts after 6 quiet hours. Reply time is the median gap when the sender changes.</p></div>
+    <div class="card tbl"><table id="styleTable"></table></div>
+  </section>
+
+  <section class="block" id="person">
+    <div class="head"><span class="eyebrow">Each person</span><h2>Everyone gets their own analysis</h2><p class="muted">Pick a person to see how they text, who they talk to, and Claude's read on them.</p></div>
+    <div class="ptabs" id="personTabs"></div>
+    <div id="personBox"></div>
+  </section>
+
+  <section class="block" id="words">
+    <div class="head"><span class="eyebrow">Words</span><h2>The words each of you reaches for</h2><p class="muted">Bigger means more often. Signature words are the ones a person uses far more than everyone else.</p></div>
+    <div class="grid g2" id="clouds"></div>
+  </section>
+
+  <section class="block" id="portrait">
+    <div class="head"><span class="eyebrow">Portrait</span><h2>Your chat as a mosaic</h2><p class="muted">Every tile is one day, colored by who talked most and brighter when you talked more.</p></div>
+    <div class="card"><canvas id="mosaic"></canvas><div class="legend" id="mosaicLegend" style="margin-top:10px"></div></div>
+    <div id="verseBox"></div>
+  </section>
+
+  <section class="block" id="people">
+    <div class="head"><span class="eyebrow">People</span><h2>Love languages, attachment and superlatives</h2></div>
+    <div id="peopleBox"></div>
+  </section>
+
+  <section class="block" id="twin">
+    <div class="head"><span class="eyebrow">Text their twin</span><h2 id="twinTitle">Text them, the way they'd text back</h2><p class="muted">The twin studies how they actually write: message length, caps, punctuation, slang, emoji, and how many texts they send in a row. It's a simulation, not the real person.</p></div>
+    <div class="grid g2">
+      <div class="phone">
+        <div class="phone-top"><div class="avatar" id="twinAv">?</div><div><b id="twinName">…</b><div class="muted" style="font-size:12px" id="twinSub"></div></div></div>
+        <div class="thread" id="thread"></div>
+        <form class="composer" id="composer"><input id="twinInput" type="text" placeholder="iMessage" autocomplete="off"><button class="primary" id="twinSend">Send</button></form>
+      </div>
+      <div class="twin-side card">
+        <label for="twinWho">Who you're texting<select id="twinWho"></select></label>
+        <label for="twinMe">You are<select id="twinMe"></select></label>
+        <label style="display:flex;gap:8px;align-items:center;font-weight:500"><input type="checkbox" id="twinSmart"> Smarter, slower replies</label>
+        <button id="twinReset">Start over</button>
+        <div><h3 style="margin-bottom:6px">What the twin learned</h3><div id="twinProfile" class="muted" style="font-size:13px"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="ask">
+    <div class="head"><span class="eyebrow">Ask</span><h2>Ask anything about this chat</h2></div>
+    <div class="card" style="display:grid;gap:12px">
+      <form class="row" id="askForm"><input type="text" id="askInput" placeholder="Who apologizes more? What do we argue about? When did we get closer?"><button class="primary" id="askBtn">Ask</button></form>
+      <div class="chips" id="askChips"></div>
+      <div class="answer" id="askOut"></div>
+    </div>
+  </section>
+
+  <section class="block" id="gallery">
+    <div class="head"><span class="eyebrow">Shared reports</span><h2>Reports people have shared</h2><p class="muted">Shared reports hold the stats and AI write-ups only. The messages themselves never leave the browser of the person who loaded them.</p></div>
+    <div class="glist" id="glist"><span class="muted">Loading shared reports…</span></div>
+  </section>
+
+  <footer>Chatprint counts everything locally in your browser. AI sections send a sample of messages to Claude using your account when you run them.</footer>
+</main>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const COLORS = ["#2B59FF","#FF5A4E","#13A388","#F2A50C","#9B5CF6","#E0479E","#0EA5C6","#7A8B2E"];
+const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const S = { msgs: [], people: [], stats: null, isSample: true, ai: {}, fp: "" };
+let sampleFn = null;
+const samplePromise = (async () => { try { sampleFn = window.claude ? await window.claude.use("sample") : null; } catch { sampleFn = null; } return sampleFn; })();
+
+/* ---------------- parsing ---------------- */
+const MEDIA_RE = /(<media omitted>|^\s*(image|video|audio|sticker|gif|document|photo) omitted|<attached:|^\s*\[(photo|image|video|sticker)\]\s*$)/i;
+const SKIP_RE = /(end-to-end encrypted|this message was deleted|you deleted this message|^null$|waiting for this message|missed (voice|video) call)/i;
+function cleanText(t){ return t.replace(/[\u200e\u200f\u202a-\u202e\ufeff]/g,"").replace(/[\u202f\u00a0]/g," ").replace(/\r/g,""); }
+
+function parseWhatsApp(text){
+  const lines = cleanText(text).split("\n");
+  const re = /^\[?(\d{1,4})[\/.\-](\d{1,2})[\/.\-](\d{2,4}),?\s+(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?\s*([AaPp]\.?\s?[Mm]\.?)?\]?\s*(?:[-–]\s*)?(.*)$/;
+  const raw = []; let cur = null;
+  for (const line of lines){
+    const m = line.match(re);
+    if (m){ cur = {a:+m[1],b:+m[2],c:+m[3],h:+m[4],mi:+m[5],s:+(m[6]||0),ap:m[7],rest:m[8]}; raw.push(cur); }
+    else if (cur) cur.rest += "\n" + line;
+  }
+  if (raw.length < 2) return null;
+  let order;
+  if (raw[0].a > 31) order = "YMD";
+  else { const A = raw.some(r=>r.a>12), B = raw.some(r=>r.b>12);
+    order = A && !B ? "DMY" : B && !A ? "MDY" : raw.some(r=>r.ap) ? "MDY" : "DMY"; }
+  const out = [];
+  for (const r of raw){
+    let y,mo,d;
+    if (order==="YMD"){y=r.a;mo=r.b;d=r.c} else if (order==="DMY"){d=r.a;mo=r.b;y=r.c} else {mo=r.a;d=r.b;y=r.c}
+    if (y < 100) y += 2000;
+    let h = r.h; if (r.ap){ const pm = /p/i.test(r.ap); if (pm && h<12) h+=12; if (!pm && h===12) h=0; }
+    const idx = r.rest.indexOf(": ");
+    if (idx < 1 || idx > 60) continue;
+    const from = r.rest.slice(0, idx).trim(); const body = r.rest.slice(idx+2).trim();
+    if (!body || SKIP_RE.test(body)) continue;
+    out.push({ t: new Date(y, mo-1, d, h, r.mi, r.s).getTime(), from, text: MEDIA_RE.test(body) ? "" : body, media: MEDIA_RE.test(body) });
+  }
+  return out.length ? out : null;
+}
+
+function parseIMessage(text){
+  const lines = cleanText(text).split("\n");
+  const re = /^([A-Z][a-z]{2}) (\d{1,2}), (\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})\s*([AP]M)/;
+  const MON = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+  const out = [];
+  for (let i=0;i<lines.length;i++){
+    const m = lines[i].match(re); if (!m || MON[m[1]]===undefined) continue;
+    let h = +m[4]; if (m[7]==="PM" && h<12) h+=12; if (m[7]==="AM" && h===12) h=0;
+    const from = (lines[i+1]||"").trim(); if (!from) continue;
+    const body = []; let j = i+2;
+    while (j < lines.length && lines[j].trim() !== "" && !re.test(lines[j])) { body.push(lines[j]); j++; }
+    const b = body.join("\n").trim();
+    out.push({ t: new Date(+m[3], MON[m[1]], +m[2], h, +m[5], +m[6]).getTime(), from, text: /^attachment|\.(jpe?g|png|heic|mov|mp4|gif)$/i.test(b) ? "" : b, media: /^attachment|\.(jpe?g|png|heic|mov|mp4|gif)$/i.test(b) });
+    i = j - 1;
+  }
+  return out.length > 1 ? out : null;
+}
+
+function fixEnc(s){ try { return decodeURIComponent(escape(s)); } catch { return s; } }
+function parseJSON(j){
+  const msgs = Array.isArray(j) ? j : j.messages;
+  if (!Array.isArray(msgs) || !msgs.length) return null;
+  const f = msgs.find(Boolean);
+  if ("sender_name" in f){ // Instagram / Messenger
+    return msgs.filter(m=>m.sender_name).map(m => ({ t: m.timestamp_ms, from: fixEnc(m.sender_name),
+      text: m.content ? fixEnc(m.content) : "", media: !m.content && !!(m.photos||m.videos||m.audio_files||m.share||m.sticker||m.gifs) }))
+      .filter(m => m.text || m.media).filter(m => !/^(reacted|liked a message|sent an attachment)/i.test(m.text));
+  }
+  if ("from" in f || j.type === "personal_chat" || j.type === "private_group"){ // Telegram
+    return msgs.filter(m=>m.type==="message" && m.from).map(m => {
+      const t = Array.isArray(m.text) ? m.text.map(x => typeof x === "string" ? x : x.text).join("") : (m.text||"");
+      return { t: new Date(m.date).getTime(), from: m.from, text: t, media: !t && !!(m.photo||m.file||m.media_type) };
+    }).filter(m=>m.text||m.media);
+  }
+  if ("author" in f){ // Discord
+    return msgs.filter(m=>m.author).map(m => ({ t: new Date(m.timestamp).getTime(), from: m.author.nickname || m.author.name,
+      text: m.content || "", media: !m.content && (m.attachments||[]).length>0 })).filter(m=>m.text||m.media);
+  }
+  return null;
+}
+
+function parseAny(text){
+  const tr = text.trim();
+  if (tr.startsWith("{") || tr.startsWith("[")){ try { return parseJSON(JSON.parse(tr)); } catch {} }
+  return parseWhatsApp(text) || parseIMessage(text);
+}
+
+async function readFiles(files){
+  let all = [];
+  for (const f of files){
+    if (/\.zip$/i.test(f.name)){
+      if (!window.JSZip) throw new Error("Couldn't open the zip here. Unzip it and pick the .txt inside.");
+      const zip = await JSZip.loadAsync(f);
+      const names = Object.keys(zip.files).filter(n => /\.(txt|json)$/i.test(n) && !zip.files[n].dir);
+      names.sort((a,b) => (/_chat\.txt$/i.test(b)?1:0) - (/_chat\.txt$/i.test(a)?1:0));
+      for (const n of names){ const r = parseAny(await zip.files[n].async("string")); if (r){ all = all.concat(r); if (/\.txt$/i.test(n)) break; } }
+    } else {
+      const r = parseAny(await f.text()); if (r) all = all.concat(r);
+    }
+  }
+  return all;
+}
+
+/* ---------------- analysis ---------------- */
+const STOP = new Set(("a an the and or but if to of in on at for with is it its it's i im i'm me my you u your ur we us our he she they them his her their this that these those was were be been are am do did does so just not no yes have has had will would can could should what when where who why how there here then than too very about up out from as by all get got go going like dont don't thats that's ill i'll ive i've id i'd youre you're one know think also really want some more any been into over gonna oh ok okay would've its well even still much now its back see did make way said say thing things im u r its omitted media image deleted message null http https www com sticker video audio gif document photo").split(" "));
+const POS = new Set("love loved lovely good great happy amazing awesome best thanks thank ty yay nice cute fun excited proud congrats congratulations beautiful perfect glad haha hahaha hehe lol lmao lmfao sweet cool wow yes deal fav favorite favourite enjoy enjoyed laugh funny hilarious wonderful fantastic yess yesss win won agree appreciate smile excellent".split(" "));
+const NEG = new Set("sad bad hate hated angry upset tired sorry annoyed worst awful terrible cry crying hurt stressed stress ugh mad lonely sick forgotten fight fought wtf hurts pain worried anxious scared afraid disappointed miserable depressed exhausted broke lost hell damn annoying ruined cant can't nope sucks".split(" "));
+const POS_E = new Set([..."😂🤣😍🥰😊😁😄😆🎉🫶💕💖✨😌🥹👍🙌😎😘❤💯🔥🤩😃"]);
+const NEG_E = new Set([..."😢😞😔😡😤💔😩😫🙄😠😒😕☹😣😖"]);
+const EMOJI_RE = /\p{Extended_Pictographic}/gu;
+const WORD_RE = /[\p{L}\p{N}'’]+/gu;
+const ABBR = ["u","ur","rn","tbh","ngl","idk","omg","btw","imo","fr","lowkey","ong","bro","bruh","tmrw","ik","k","ya","ty","pls","plz","abt","cuz","bc","gonna","wanna","istg","smh","wyd","hbu","lol","lmao","lmfao","haha","hahaha","jk","nvm","ofc","def","prob","obv","ily","ttyl"];
+const norm = w => w.toLowerCase().replace(/’/g,"'").replace(/(.)\1{2,}/g,"$1$1");
+const dayNum = t => Math.floor((t - new Date(t).getTimezoneOffset()*60000)/864e5);
+const dayKey = t => { const d = new Date(t); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
+const weekStart = t => { const d = new Date(t); d.setHours(0,0,0,0); d.setDate(d.getDate() - ((d.getDay()+6)%7)); return d.getTime(); };
+const median = a => { if (!a.length) return null; const s=[...a].sort((x,y)=>x-y); const m=s.length>>1; return s.length%2?s[m]:(s[m-1]+s[m])/2; };
+const fmtDur = ms => ms==null ? "–" : ms < 60e3 ? Math.round(ms/1e3)+"s" : ms < 3600e3 ? Math.round(ms/60e3)+" min" : (ms/3600e3).toFixed(1)+" h";
+const fmtDate = (t, o={day:"numeric",month:"short",year:"numeric"}) => new Date(t).toLocaleDateString(undefined, o);
+const fmtN = n => n.toLocaleString();
+const hourLabel = h => h===0 ? "midnight" : h===12 ? "noon" : (h%12) + (h<12 ? "am" : "pm");
+
+function analyze(msgs){
+  msgs.sort((a,b)=>a.t-b.t);
+  const P = new Map();
+  const get = name => { if (!P.has(name)) P.set(name, {name, n:0, words:0, chars:0, media:0, emoji:new Map(), tok:new Map(), starts:0, replies:[], bursts:[], night:0, lowerStart:0, letterStart:0, endPunct:0, endPeriod:0, questions:0, caps:0, emojiMsgs:0, wordCounts:[], pos:0, neg:0, hours:Array(24).fill(0), replyTo:new Map()}); return P.get(name); };
+  const days = new Map(), weeks = new Map(), heat = Array.from({length:7},()=>Array(24).fill(0));
+  let prev = null, burst = 0, convs = 0;
+  for (const m of msgs){
+    const p = get(m.from); p.n++;
+    const d = new Date(m.t);
+    heat[d.getDay()][d.getHours()]++;
+    if (d.getHours() < 5) p.night++;
+    p.hours[d.getHours()]++;
+    const dk = dayKey(m.t); if (!days.has(dk)) days.set(dk, {t:m.t, n:0, by:new Map()});
+    const day = days.get(dk); day.n++; day.by.set(m.from, (day.by.get(m.from)||0)+1);
+    const wk = weekStart(m.t); if (!weeks.has(wk)) weeks.set(wk, {by:new Map(), mood:new Map()});
+    const W = weeks.get(wk); W.by.set(m.from, (W.by.get(m.from)||0)+1);
+    if (!prev || m.t - prev.t > 6*3600e3){ p.starts++; convs++; }
+    if (prev && prev.from !== m.from && m.t - prev.t < 12*3600e3){ p.replies.push(m.t - prev.t); p.replyTo.set(prev.from, (p.replyTo.get(prev.from)||0)+1); }
+    if (prev && prev.from === m.from && m.t - prev.t < 10*60e3) burst++;
+    else { if (prev) get(prev.from).bursts.push(burst+1); burst = 0; }
+    if (m.media){ p.media++; prev = m; continue; }
+    const txt = m.text;
+    const words = txt.match(WORD_RE) || [];
+    p.words += words.length; p.chars += txt.length; p.wordCounts.push(words.length);
+    const first = txt.match(/\p{L}/u);
+    if (first){ p.letterStart++; if (txt.trim()[0] === first[0] && first[0] === first[0].toLowerCase() && first[0] !== first[0].toUpperCase()) p.lowerStart++; }
+    if (/[.!?]$/.test(txt.trim())) p.endPunct++;
+    if (/[^.]\.$/.test(txt.trim())) p.endPeriod++;
+    if (txt.includes("?")) p.questions++;
+    if (txt.length > 3 && txt === txt.toUpperCase() && /\p{Lu}/u.test(txt)) p.caps++;
+    const em = txt.match(EMOJI_RE) || [];
+    if (em.length) p.emojiMsgs++;
+    let pos = 0, neg = 0;
+    for (const e of em){ p.emoji.set(e, (p.emoji.get(e)||0)+1); if (POS_E.has(e)) pos++; if (NEG_E.has(e)) neg++; }
+    for (const w0 of words){
+      const w = norm(w0);
+      if (POS.has(w)) pos++; if (NEG.has(w)) neg++;
+      if (w.length < 2 || STOP.has(w) || /^\d+$/.test(w)) continue;
+      p.tok.set(w, (p.tok.get(w)||0)+1);
+    }
+    p.pos += pos; p.neg += neg;
+    const mo = W.mood.get(m.from) || {pos:0,neg:0,n:0}; mo.pos += pos; mo.neg += neg; mo.n++; W.mood.set(m.from, mo);
+    prev = m;
+  }
+  if (prev) get(prev.from).bursts.push(burst+1);
+  const people = [...P.values()].sort((a,b)=>b.n-a.n);
+  people.forEach((p,i) => { p.color = COLORS[i % COLORS.length]; p.idx = i; });
+  // signature words
+  const totalTok = new Map(); let totalAll = 0;
+  for (const p of people){ p.tokTotal = 0; for (const [w,c] of p.tok){ totalTok.set(w,(totalTok.get(w)||0)+c); p.tokTotal += c; } totalAll += p.tokTotal; }
+  for (const p of people){
+    const other = Math.max(1, totalAll - p.tokTotal);
+    p.signature = [...p.tok].filter(([w,c]) => c >= 3).map(([w,c]) => [w, ((c+1)/(p.tokTotal+1)) / (((totalTok.get(w)-c)+1)/other), c])
+      .sort((a,b)=>b[1]-a[1]).slice(0,8).map(x=>x[0]);
+    p.topWords = [...p.tok].sort((a,b)=>b[1]-a[1]).slice(0,40);
+    p.topEmoji = [...p.emoji].sort((a,b)=>b[1]-a[1]).slice(0,6);
+  }
+  // streaks
+  const dnums = [...new Set(msgs.map(m=>dayNum(m.t)))].sort((a,b)=>a-b);
+  let best = 1, run = 1, bestEnd = dnums[0];
+  for (let i=1;i<dnums.length;i++){ if (dnums[i]===dnums[i-1]+1){ run++; if (run>best){best=run;bestEnd=dnums[i];} } else run = 1; }
+  const busiest = [...days.values()].sort((a,b)=>b.n-a.n)[0];
+  const allEmoji = new Map(); people.forEach(p => p.emoji.forEach((c,e)=>allEmoji.set(e,(allEmoji.get(e)||0)+c)));
+  return { people, days, weeks, heat, convs, streak: best, first: msgs[0].t, last: msgs[msgs.length-1].t, activeDays: days.size,
+    busiest, topEmoji: [...allEmoji].sort((a,b)=>b[1]-a[1]).slice(0,5), media: people.reduce((s,p)=>s+p.media,0), total: msgs.length };
+}
+
+/* ---------------- rendering helpers ---------------- */
+function niceMax(v){ if (v<=0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const n = v/p; return (n<=1?1:n<=2?2:n<=5?5:10)*p; }
+function lineChart(series, labels, {min=0, max=null, zero=false, height=230} = {}){
+  const W = 760, H = height, L = 44, R = 12, T = 12, B = 26;
+  const vals = series.flatMap(s=>s.values.filter(v=>v!=null));
+  let hi = max ?? niceMax(Math.max(1,...vals)); let lo = min;
+  const x = i => L + (labels.length<=1 ? 0 : i*(W-L-R)/(labels.length-1));
+  const y = v => T + (hi - v)*(H-T-B)/(hi - lo);
+  let g = "";
+  const ticks = zero ? [lo, 0, hi] : [0, hi/2, hi];
+  for (const tv of ticks){ g += `<line x1="${L}" x2="${W-R}" y1="${y(tv)}" y2="${y(tv)}" stroke="var(--line)" stroke-width="1" ${tv===0&&zero?'':'stroke-dasharray="3 4"'}/>`;
+    g += `<text x="${L-8}" y="${y(tv)+4}" text-anchor="end">${zero ? (tv>0?"brighter":tv<0?"heavier":"0") : fmtN(Math.round(tv))}</text>`; }
+  const step = Math.max(1, Math.ceil(labels.length/7));
+  labels.forEach((lb,i) => { if (i%step===0) g += `<text x="${x(i)}" y="${H-6}" text-anchor="middle">${esc(lb)}</text>`; });
+  for (const s of series){
+    let d = "", pen = false;
+    s.values.forEach((v,i) => { if (v==null){ pen=false; return; } d += (pen?"L":"M")+x(i).toFixed(1)+" "+y(v).toFixed(1)+" "; pen = true; });
+    g += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>`;
+    const li = s.values.map((v,i)=>[v,i]).filter(a=>a[0]!=null).pop();
+    if (li) g += `<circle cx="${x(li[1])}" cy="${y(li[0])}" r="4" fill="${s.color}"/>`;
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" role="img">${g}</svg>`;
+}
+const legend = people => people.map(p=>`<span><i class="dot" style="background:${p.color}"></i>${esc(p.name)}</span>`).join("");
+const initials = n => n.split(/\s+/).map(w=>w[0]).join("").slice(0,2).toUpperCase();
+const first = n => n.split(/\s+/)[0];
+
+function hash(str){ let h = 2166136261; for (let i=0;i<Math.min(str.length,20000);i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h>>>0).toString(16).toUpperCase().padStart(8,"0").slice(0,6); }
+
+/* ---------------- render report ---------------- */
+function render(){
+  const st = S.stats, ppl = st.people, top = ppl.slice(0, 8), one = ppl.length === 2;
+  $("#sampleBanner").hidden = !S.isSample;
+  $("#fp").textContent = `Chatprint · N° ${S.fp}${S.isSample ? " · sample chat" : ""}`;
+  $("#title").innerHTML = one ? `${esc(ppl[0].name)} <span class="amp">&amp;</span> ${esc(ppl[1].name)}`
+    : `${esc(first(ppl[0].name))}, ${esc(first(ppl[1].name))} <span class="amp">and ${ppl.length-2} others</span>`;
+  const spanDays = dayNum(st.last) - dayNum(st.first) + 1;
+  $("#meta").innerHTML = [["Messages", fmtN(st.total)], ["Chat", one ? "One-on-one" : `Group · ${ppl.length} people`], ["From", fmtDate(st.first)], ["To", fmtDate(st.last)]]
+    .map(([k,v])=>`<div><span class="eyebrow">${k}</span><b>${v}</b></div>`).join("");
+
+  $("#tiles").innerHTML = [
+    [fmtN(Math.round(st.total/spanDays*10)/10), "messages a day on average"],
+    [`${st.activeDays} / ${spanDays}`, "days you talked"],
+    [`${st.streak} days`, "longest daily streak"],
+    [fmtN(st.busiest.n), `busiest day, ${fmtDate(st.busiest.t)}`],
+    [fmtN(st.convs), "separate conversations"],
+    [st.topEmoji.length ? st.topEmoji.slice(0,3).map(e=>e[0]).join(" ") : "–", "most-used emoji"],
+  ].map(([b,s])=>`<div class="tile"><b>${b}</b><span>${esc(s)}</span></div>`).join("");
+
+  // mood
+  const wkKeys = [...st.weeks.keys()].sort((a,b)=>a-b);
+  const wkLabels = wkKeys.map(k => fmtDate(k, {month:"short", day:"numeric"}));
+  const moodPeople = top.slice(0, 5);
+  const moodSeries = moodPeople.map(p => ({ color:p.color, values: wkKeys.map(k => { const m = st.weeks.get(k).mood.get(p.name); if (!m || m.n < 4) return null; return Math.max(-1, Math.min(1, (m.pos - m.neg) / (m.pos + m.neg + 4))); }) }));
+  $("#moodLegend").innerHTML = legend(moodPeople);
+  $("#moodChart").innerHTML = lineChart(moodSeries, wkLabels, {min:-1, max:1, zero:true});
+  let hiW = null, loW = null;
+  wkKeys.forEach((k,i) => { const v = moodSeries.map(s=>s.values[i]).filter(v=>v!=null); if (!v.length) return; const a = v.reduce((x,y)=>x+y,0)/v.length; if (!hiW || a>hiW[1]) hiW=[k,a]; if (!loW || a<loW[1]) loW=[k,a]; });
+  $("#moodNote").textContent = hiW && loW && hiW[0]!==loW[0] ? `Brightest week: ${fmtDate(hiW[0],{month:"long",day:"numeric"})}. Heaviest week: ${fmtDate(loW[0],{month:"long",day:"numeric"})}.` : "";
+
+  // bars
+  $("#bars").innerHTML = top.map(p => `<div class="bar"><span class="name">${esc(p.name)}</span><div class="track"><div class="fill" style="width:${(p.n/ppl[0].n*100).toFixed(1)}%;background:${p.color}"></div></div><span class="mono">${fmtN(p.n)} · ${Math.round(p.n/st.total*100)}%</span></div>`).join("")
+    + (ppl.length > 8 ? `<p class="muted" style="font-size:13px">+ ${ppl.length-8} more people with ${fmtN(ppl.slice(8).reduce((s,p)=>s+p.n,0))} messages</p>` : "");
+
+  // heat
+  const hmax = Math.max(1, ...st.heat.flat());
+  let h = `<div class="lab"></div>` + Array.from({length:24},(_,i)=>`<div class="lab">${i%6===0 ? (i===0?"12a":i<12?i+"a":i===12?"12p":(i-12)+"p") : ""}</div>`).join("");
+  st.heat.forEach((row,d) => { h += `<div class="lab">${DOW[d]}</div>` + row.map((v,hr) => `<div title="${DOW[d]} ${hr}:00 · ${v} messages" style="background:color-mix(in srgb, var(--accent) ${v ? Math.round(12 + 88*v/hmax) : 0}%, var(--cell))"></div>`).join(""); });
+  $("#heat").innerHTML = h;
+  let peak = [0,0]; st.heat.forEach((r,d)=>r.forEach((v,hr)=>{ if (v > st.heat[peak[0]][peak[1]]) peak=[d,hr]; }));
+  $("#heatNote").textContent = `Peak: ${DOW[peak[0]]}days around ${hourLabel(peak[1])}.`;
+
+  // weekly
+  const weekPeople = top.slice(0, 5);
+  $("#weekLegend").innerHTML = legend(weekPeople);
+  $("#weekChart").innerHTML = lineChart(weekPeople.map(p => ({color:p.color, values: wkKeys.map(k => st.weeks.get(k).by.get(p.name) || 0)})), wkLabels);
+
+  // style table
+  const rows = top.map(p => {
+    const txtN = Math.max(1, p.n - p.media);
+    return `<tr><td><i class="dot" style="background:${p.color}"></i>${esc(p.name)}</td><td>${fmtN(p.n)}</td><td>${(p.words/txtN).toFixed(1)}</td><td>${Math.round(p.starts/Math.max(1,st.convs)*100)}%</td><td>${fmtDur(median(p.replies))}</td><td>${(p.bursts.reduce((a,b)=>a+b,0)/Math.max(1,p.bursts.length)).toFixed(1)}</td><td>${Math.round(p.lowerStart/Math.max(1,p.letterStart)*100)}%</td><td>${Math.round(p.questions/txtN*100)}%</td><td>${Math.round(p.night/p.n*100)}%</td><td>${p.topEmoji.slice(0,3).map(e=>e[0]).join(" ") || "–"}</td></tr>`;
+  }).join("");
+  $("#styleTable").innerHTML = `<thead><tr><th>Person</th><th>Msgs</th><th>Words/msg</th><th>Starts convos</th><th>Median reply</th><th>Texts in a row</th><th>lowercase</th><th>Asks questions</th><th>After midnight</th><th>Emoji</th></tr></thead><tbody>${rows}</tbody>`;
+
+  // clouds
+  $("#clouds").innerHTML = top.slice(0, 6).map(p => {
+    const mx = p.topWords[0]?.[1] || 1;
+    const words = [...p.topWords].sort(() => 0).map(([w,c],i) => `<span style="font-size:${(13 + 26*Math.sqrt(c/mx)).toFixed(0)}px;color:${i%3===0 ? p.color : "var(--ink)"};opacity:${(0.55+0.45*c/mx).toFixed(2)}" title="${c}×">${esc(w)}</span>`).join("");
+    return `<div class="card" style="display:grid;gap:12px"><h3><i class="dot" style="background:${p.color}"></i>${esc(p.name)}</h3><div class="cloud">${words || '<span class="muted">Not enough words yet</span>'}</div>
+      ${p.signature.length ? `<div><div class="eyebrow" style="margin-bottom:6px">Signature words</div><div class="chips">${p.signature.map(w=>`<span class="chip">${esc(w)}</span>`).join("")}</div></div>` : ""}</div>`;
+  }).join("");
+
+  renderPersonTabs();
+  const live = S.msgs.length > 0;
+  $("#twin").hidden = !live; $("#ask").hidden = !live;
+  document.querySelectorAll('a[href="#twin"],a[href="#ask"]').forEach(a => a.hidden = !live);
+  $("#sharedBanner").hidden = !S.sharedId;
+  $("#sharedBanner").textContent = S.sharedId ? `Shared report${S.sharedAt ? " from " + fmtDate(S.sharedAt) : ""}. Texting the twin and asking questions need the original chat, so they're off here.` : "";
+  $("#shareOut").hidden = true;
+  drawMosaic();
+  $("#mosaicLegend").innerHTML = legend(top);
+  if (live) setupTwin();
+  renderAI();
+  $("#askChips").innerHTML = (one ? ["Who cares more?","What do we argue about?","When did we get closer?","Who apologizes more?","What are our inside jokes?"]
+    : ["Who's the funniest?","Who holds the group together?","What are the group's inside jokes?","Who gets left on read?","What's the biggest drama?"]).map(q=>`<button type="button" class="chip" data-q="${esc(q)}">${esc(q)}</button>`).join("");
+}
+
+function drawMosaic(){
+  const st = S.stats, cv = $("#mosaic"); if (!st) return;
+  const cs = getComputedStyle(document.documentElement);
+  const cell = cs.getPropertyValue("--cell").trim() || "#ddd";
+  const d0 = dayNum(st.first), d1 = dayNum(st.last), n = d1 - d0 + 1;
+  const w = cv.clientWidth || 600;
+  const cols = Math.max(7, Math.min(n, Math.round(Math.sqrt(n * (w/220)))));
+  const size = w / cols, rows = Math.ceil(n / cols);
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = w * dpr; cv.height = rows * size * dpr; cv.style.height = rows*size + "px";
+  const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr);
+  const byNum = new Map(); st.days.forEach(v => byNum.set(dayNum(v.t), v));
+  const mx = Math.max(...[...st.days.values()].map(v=>v.n));
+  const col = Object.fromEntries(st.people.map(p=>[p.name, p.color]));
+  for (let i=0;i<n;i++){
+    const x = (i%cols)*size, y = Math.floor(i/cols)*size, g = Math.max(1, size*0.08);
+    const day = byNum.get(d0+i);
+    ctx.globalAlpha = 1; ctx.fillStyle = cell;
+    if (day){ let bestN = "", bc = -1; day.by.forEach((c,nm)=>{ if (c>bc){bc=c;bestN=nm;} }); ctx.fillStyle = col[bestN] || "#888"; ctx.globalAlpha = 0.28 + 0.72*Math.sqrt(day.n/mx); }
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x+g, y+g, size-2*g, size-2*g, size*0.18) : ctx.rect(x+g, y+g, size-2*g, size-2*g); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(drawMosaic, 150); });
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => setTimeout(drawMosaic, 50));
+
+/* ---------------- AI context ---------------- */
+function line(m){ return `[${dayKey(m.t)} ${new Date(m.t).toTimeString().slice(0,5)}] ${m.from}: ${m.media ? "[photo/media]" : m.text.replace(/\s+/g," ").slice(0,280)}`; }
+function excerpt(maxChars){
+  const ms = S.msgs; let full = ms.map(line);
+  const totalLen = full.reduce((s,l)=>s+l.length+1,0);
+  if (totalLen <= maxChars) return full.join("\n");
+  const win = 40, nWin = Math.floor(maxChars / (win * 70)); const out = [];
+  for (let k=0;k<nWin;k++){ const start = Math.floor((ms.length - win) * k / Math.max(1,nWin-1)); out.push(`--- ${fmtDate(ms[start].t)} ---`, ...full.slice(start, start+win)); }
+  let txt = out.join("\n"); return txt.length > maxChars ? txt.slice(0, maxChars) : txt;
+}
+function statsSummary(){
+  const st = S.stats;
+  return `Chat: ${st.people.length===2?"one-on-one":"group of "+st.people.length} · ${st.total} messages · ${fmtDate(st.first)} to ${fmtDate(st.last)}\n` +
+    st.people.slice(0,10).map(p => `- ${p.name}: ${p.n} msgs, starts ${Math.round(p.starts/st.convs*100)}% of conversations, median reply ${fmtDur(median(p.replies))}, top words: ${p.topWords.slice(0,10).map(w=>w[0]).join(", ")}, top emoji: ${p.topEmoji.map(e=>e[0]).join("")}`).join("\n");
+}
+function aiErr(e){ const c = e && e.code;
+  return c==="not_granted"||c==="sampling_disabled"||c==="capability_disabled"||c==="not_declared" ? "AI features aren't allowed in this view."
+    : c==="rate_limited" ? "Claude is busy or you've hit a usage limit. Try again in a bit." : c==="refused" ? "Claude declined to analyze this chat." : c==="invalid_json" ? "The answer came back garbled. Try again." : "Something went wrong reaching Claude. Try again."; }
+
+/* ---------------- AI insights ---------------- */
+async function runInsights(){
+  if (!S.stats) return;
+  const s = await samplePromise;
+  if (!s){ S.ai = {state:"unavailable"}; renderAI(); return; }
+  const gen = S.fp; S.ai = {state:"loading"}; renderAI();
+  const one = S.stats.people.length === 2, names = S.stats.people.slice(0,6).map(p=>p.name);
+  const ctx = `STATS\n${statsSummary()}\n\nCHAT EXCERPTS (sampled across the whole history)\n${excerpt(70000)}`;
+  const pA = `You are writing a sharp, warm, specific relationship report about a real ${one?"one-on-one":"group"} text chat. Ground every claim in concrete details from the messages (real phrases, dates, running jokes). No generic filler. Use the participants' first names.\n\n${ctx}\n\nReply with only JSON of this shape:\n{"headline": "one punchy sentence capturing the dynamic", "dynamic": "3-4 sentences on how they talk to each other, with specifics", "moment": {"date": "YYYY-MM-DD", "summary": "a memorable warm or funny moment"}, "friction": {"date": "YYYY-MM-DD", "summary": "a real moment of tension and how it resolved", "quote": "short exact quote from it"}, "compatibility": {"score": 0-100, "label": "two or three words", "between": "${one ? names.join(" & ") : "the group"}", "breakdown": [{"name":"Humor","score":0-100},{"name":"Support","score":0-100},{"name":"Reciprocity","score":0-100},{"name":"Communication","score":0-100}]}, "insideJokes": [{"phrase":"...", "story":"one sentence"}], "verse": "a 4-line poem about this chat, lines separated by \\n", "galleryNote": "one sentence like a museum placard for this chat"}\ninsideJokes: up to 4.`;
+  const pB = `Analyze each person in this real text chat. Base everything on evidence from the messages; cite a concrete behavior or phrase in each evidence field. People to cover: ${names.join(", ")}.\n\n${ctx}\n\nReply with only JSON:\n{"people": [{"name": "exact name", "role": "their role in the chat in under 8 words", "loveLanguage": {"primary": "Words of affirmation|Quality time|Acts of service|Gifts|Physical touch", "secondary": "...", "evidence": "one sentence"}, "attachment": {"style": "Secure|Anxious|Avoidant|Fearful-avoidant", "evidence": "one sentence"}, "superpower": "one short phrase"}], "picks": [{"title": "superlative like Most likely to double text", "name": "exact name", "why": "one sentence with a real example"}]}\npicks: 5 items.`;
+  try {
+    const [a, b] = await Promise.allSettled([s.json(pA, {cache:{gcTime:86400000}}), s.json(pB, {cache:{gcTime:86400000}})]);
+    if (gen !== S.fp) return;
+    S.ai = { state:"done", a: a.status==="fulfilled" ? a.value : null, b: b.status==="fulfilled" ? b.value : null,
+      errA: a.status==="rejected" ? aiErr(a.reason) : "", errB: b.status==="rejected" ? aiErr(b.reason) : "" };
+  } catch(e){ S.ai = {state:"error", err: aiErr(e)}; }
+  renderAI();
+}
+
+function aiPrompt(label){
+  const st = S.ai.state;
+  if (st === "loading") return `<div class="card" style="display:grid;gap:10px"><span class="muted">Reading your messages…</span><div class="shimmer" style="width:90%"></div><div class="shimmer" style="width:75%"></div><div class="shimmer" style="width:60%"></div></div>`;
+  if (st === "unavailable") return `<div class="card muted">AI insights need the Claude viewer. Open this page on claude.ai to generate them.</div>`;
+  return `<div class="card ai-empty"><p class="muted">${S.ai.err ? esc(S.ai.err)+" " : ""}${esc(label)}</p><button class="primary" data-run-ai>Generate AI insights</button></div>`;
+}
+
+function renderAI(){
+  const A = S.ai.a, B = S.ai.b, st = S.stats;
+  const nameColor = n => (st.people.find(p=>p.name===n) || st.people.find(p=>first(p.name)===first(n||"")))?.color || "var(--accent)";
+  // dynamic
+  if (A){
+    const c = A.compatibility || {};
+    $("#dynBox").innerHTML = `<div class="grid g2">
+      <div class="card" style="display:grid;gap:14px"><p class="lede">${esc(A.headline)}</p><p>${esc(A.dynamic)}</p>
+        ${A.moment ? `<div><div class="eyebrow">A moment · ${esc(A.moment.date)}</div><p style="margin-top:4px">${esc(A.moment.summary)}</p></div>` : ""}
+        ${A.friction ? `<div><div class="eyebrow">A moment of friction · ${esc(A.friction.date)}</div><p style="margin-top:4px">${esc(A.friction.summary)}</p>${A.friction.quote ? `<p class="quote" style="margin-top:8px">${esc(A.friction.quote)}</p>` : ""}</div>` : ""}
+      </div>
+      <div class="card" style="display:grid;gap:14px;align-content:start"><div class="eyebrow">Compatibility · ${esc(c.between || "")}</div>
+        <div class="score"><b>${+c.score||0}</b><span class="muted">/100</span><span class="pill" style="margin-left:8px">${esc(c.label||"")}</span></div>
+        <div class="bars">${(c.breakdown||[]).map(x=>`<div class="bar"><span class="name">${esc(x.name)}</span><div class="track"><div class="fill" style="width:${Math.max(0,Math.min(100,+x.score||0))}%;background:var(--accent)"></div></div><span class="mono">${+x.score||0}</span></div>`).join("")}</div>
+        ${(A.insideJokes||[]).length ? `<div><div class="eyebrow" style="margin-bottom:6px">Inside jokes</div><div style="display:grid;gap:8px">${A.insideJokes.map(j=>`<div><b>“${esc(j.phrase)}”</b> <span class="muted">${esc(j.story)}</span></div>`).join("")}</div></div>` : ""}
+        <button data-run-ai style="justify-self:start">Regenerate</button>
+      </div></div>`;
+    $("#verseBox").innerHTML = `<div class="card" style="display:grid;gap:10px"><div class="eyebrow">Gallery note</div><p>${esc(A.galleryNote)}</p><p class="verse">${esc(A.verse)}</p></div>`;
+  } else {
+    $("#dynBox").innerHTML = aiPrompt(S.ai.errA || "Claude reads a sample of your messages and writes up your dynamic, a compatibility score, your inside jokes and a moment of friction.");
+    $("#verseBox").innerHTML = "";
+  }
+  if (B){
+    $("#peopleBox").innerHTML = `<div class="grid g3">${(B.people||[]).map(p=>`<div class="card person-card">
+        <div style="display:flex;gap:10px;align-items:center"><div class="avatar" style="background:${nameColor(p.name)}">${esc(initials(p.name||"?"))}</div><div><h3>${esc(p.name)}</h3><div class="muted" style="font-size:13px">${esc(p.role)}</div></div></div>
+        <div class="kv"><span class="eyebrow">Love language</span><b>${esc(p.loveLanguage?.primary)}</b><span class="muted" style="font-size:13px">then ${esc(p.loveLanguage?.secondary)} · ${esc(p.loveLanguage?.evidence)}</span></div>
+        <div class="kv"><span class="eyebrow">Attachment style</span><b>${esc(p.attachment?.style)}</b><span class="muted" style="font-size:13px">${esc(p.attachment?.evidence)}</span></div>
+        <div class="kv"><span class="eyebrow">Superpower</span><span>${esc(p.superpower)}</span></div></div>`).join("")}</div>
+      ${(B.picks||[]).length ? `<h3 style="margin-top:8px">Picks</h3><div class="grid g3">${B.picks.map(k=>`<div class="card" style="display:grid;gap:4px"><span class="eyebrow">${esc(k.title)}</span><b style="font-family:var(--f-display);font-size:20px;color:${nameColor(k.name)}">${esc(k.name)}</b><span class="muted" style="font-size:14px">${esc(k.why)}</span></div>`).join("")}</div>` : ""}
+      <p class="muted" style="font-size:12px">Love languages and attachment styles are playful reads of texting habits, not a diagnosis.</p>`;
+    renderPerson();
+  } else {
+    renderPerson();
+    $("#peopleBox").innerHTML = A ? `<div class="card muted">${esc(S.ai.errB || "")} <button data-run-ai>Try again</button></div>` : (S.ai.state==="loading" ? aiPrompt("") : `<div class="card muted">Generated together with the dynamic above.</div>`);
+  }
+}
+document.addEventListener("click", e => { if (e.target.closest("[data-run-ai]")) { if (!S.msgs.length) return; runInsights(); }
+  const pt = e.target.closest("[data-person]"); if (pt){ S.personIdx = +pt.dataset.person; renderPersonTabs(); renderPerson(); }
+  if (e.target.closest("[data-deep]")) deepDive();
+  const q = e.target.closest("[data-q]"); if (q){ $("#askInput").value = q.dataset.q; ask(); } });
+
+/* ---------------- twin ---------------- */
+const T = { turns: [], ctl: null, busy: false, queue: [] };
+function profileFor(p){
+  const txtN = Math.max(1, p.n - p.media);
+  const wc = p.wordCounts.filter(n=>n>0);
+  const abbr = ABBR.map(a=>[a, p.tok.get(a) || 0]).filter(x=>x[1] >= 2).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const bursts = p.bursts.reduce((a,b)=>a+b,0)/Math.max(1,p.bursts.length);
+  return { avgWords: (p.words/txtN).toFixed(1), medWords: median(wc) ?? 0, lower: Math.round(p.lowerStart/Math.max(1,p.letterStart)*100),
+    endPunct: Math.round(p.endPunct/txtN*100), endPeriod: Math.round(p.endPeriod/txtN*100), emojiRate: Math.round(p.emojiMsgs/txtN*100),
+    topEmoji: p.topEmoji.map(e=>e[0]).join(" "), abbr: abbr.map(x=>x[0]).join(", "), bursts: bursts.toFixed(1),
+    caps: Math.round(p.caps/txtN*100), q: Math.round(p.questions/txtN*100), reply: fmtDur(median(p.replies)), sig: p.signature.join(", "), maxLen: Math.max(...wc, 1) };
+}
+function setupTwin(){
+  const ppl = S.stats.people.slice(0, 8);
+  const opts = ppl.map((p,i)=>`<option value="${i}">${esc(p.name)}</option>`).join("");
+  $("#twinWho").innerHTML = opts; $("#twinWho").value = "1";
+  $("#twinMe").innerHTML = opts; $("#twinMe").value = "0";
+  $("#twinTitle").textContent = ppl.length === 2 ? `Text ${first(ppl[1].name)}, the way they'd text back` : "Text anyone in the group, the way they'd text back";
+  resetTwin();
+}
+function twinPeople(){ const ppl = S.stats.people; let who = ppl[+$("#twinWho").value], me = ppl[+$("#twinMe").value]; if (who === me) me = ppl.find(p=>p!==who); return {who, me}; }
+function resetTwin(){
+  T.ctl?.abort(); T.turns = []; T.busy = false; T.queue = [];
+  const {who, me} = twinPeople(), pr = profileFor(who);
+  $("#twinName").textContent = who.name; $("#twinAv").textContent = initials(who.name); $("#twinAv").style.background = who.color;
+  $("#twinSub").textContent = `usually replies in ~${pr.reply}`;
+  $("#thread").innerHTML = `<div class="sys">You're ${esc(me.name)}. Say something to ${esc(first(who.name))}'s twin.</div>`;
+  $("#twinProfile").innerHTML = `<ul style="margin:0;padding-left:18px;display:grid;gap:3px">
+    <li>${pr.avgWords} words per text, ${pr.bursts} texts in a row</li><li>${pr.lower}% start lowercase, ${pr.endPeriod}% end with a period</li>
+    <li>emoji in ${pr.emojiRate}% of texts ${pr.topEmoji ? "· "+esc(pr.topEmoji) : ""}</li>${pr.abbr ? `<li>slang: ${esc(pr.abbr)}</li>` : ""}${pr.sig ? `<li>signature words: ${esc(pr.sig)}</li>` : ""}</ul>`;
+  $("#twinInput").placeholder = `Text ${first(who.name)}`;
+}
+function twinExamples(who, maxChars){
+  const ms = S.msgs, win = 30, cands = [];
+  for (let s = 0; s + win <= ms.length || (s === 0 && ms.length); s += win){
+    const sl = ms.slice(s, s+win); if (sl.filter(m=>m.from===who.name && !m.media).length >= 3) cands.push(sl);
+    if (s + win > ms.length) break;
+  }
+  const per = cands.length ? cands[0].length * 60 : 1, want = Math.max(1, Math.floor(maxChars / per));
+  let picks = [];
+  if (cands.length <= want) picks = cands;
+  else { // half from the most recent, half spread across history
+    const recent = Math.ceil(want/2), spread = want - recent;
+    for (let k=0;k<spread;k++) picks.push(cands[Math.floor(k*(cands.length-recent)/Math.max(1,spread))]);
+    picks = picks.concat(cands.slice(-recent));
+  }
+  const txt = picks.map(sl => sl.map(m => `${m.from}: ${m.media ? "[sends a photo]" : m.text.replace(/\n/g," ").slice(0,300)}`).join("\n")).join("\n\n---\n\n");
+  return txt.slice(-maxChars);
+}
+function twinRules(who, me){
+  const pr = profileFor(who), w = first(who.name);
+  return `You are role-playing as ${who.name} ("${w}") texting with ${me.name} in a private chat. This is a simulation built from their real message history, for ${me.name}'s own fun.\n\nText EXACTLY like ${w} does in the excerpts: same message length, capitalization, punctuation, spelling mistakes, slang, abbreviations, emoji, humor, topics, and how many separate texts they fire off in a row. Copy their energy toward ${first(me.name)} (teasing, warmth, dryness, whatever it really is). Never sound like an assistant. Never be more polite, articulate, enthusiastic or helpful than ${w} actually is. Don't over-use their catchphrases; use them about as often as they do. Reference shared people, places and running jokes from the history when it's natural. Never mention being an AI unless ${first(me.name)} sincerely asks.\n\nMeasured habits of ${w}:\n- ${pr.avgWords} words per text on average (median ${pr.medWords}); usually sends ${pr.bursts} texts in a row\n- starts lowercase ${pr.lower}% of the time; ends with . ! or ? ${pr.endPunct}% of the time; ends with a period ${pr.endPeriod}%\n- uses emoji in ${pr.emojiRate}% of texts${pr.topEmoji ? `, favorites: ${pr.topEmoji}` : ""}\n- ALL CAPS texts: ${pr.caps}%; asks questions in ${pr.q}% of texts\n${pr.abbr ? `- slang/abbreviations they use: ${pr.abbr}\n` : ""}${pr.sig ? `- words especially typical of them: ${pr.sig}\n` : ""}\nReal excerpts from the chat:\n\n${twinExamples(who, 45000)}\n\nOUTPUT RULES: Reply with only ${w}'s next text message(s). Put each separate text on its own line. No quotes, no "${w}:" prefix, no stage directions, no descriptions of photos. ${first(me.name)}'s messages will come next.`;
+}
+function bubble(text, cls){ const t = $("#thread"); const last = t.lastElementChild; const d = document.createElement("div");
+  d.className = "msg " + cls + (last && !last.classList.contains(cls) ? " gap" : ""); d.textContent = text; t.appendChild(d); t.scrollTop = t.scrollHeight; return d; }
+function sys(text){ const d = document.createElement("div"); d.className = "sys"; d.textContent = text; $("#thread").appendChild(d); $("#thread").scrollTop = 1e9; }
+const wait = ms => new Promise(r => setTimeout(r, ms));
+async function twinSend(text){
+  const s = await samplePromise;
+  const {who, me} = twinPeople();
+  bubble(text, "me");
+  if (!s){ sys("The twin needs the Claude viewer. Open this page on claude.ai to chat."); return; }
+  T.queue.push(text);
+  if (T.busy) return;
+  T.busy = true;
+  await wait(900); // let them double text
+  const userMsg = T.queue.join("\n"); T.queue = [];
+  T.turns.push({role:"user", content:userMsg});
+  const typing = document.createElement("div"); typing.className = "typing"; typing.innerHTML = "<i></i><i></i><i></i>";
+  await wait(400 + Math.random()*900);
+  $("#thread").appendChild(typing); $("#thread").scrollTop = 1e9;
+  T.ctl = new AbortController(); const ctl = T.ctl;
+  try {
+    const {text: out} = await s([{role:"user", content: twinRules(who, me)}, ...T.turns.slice(-30)], {cache:false, signal: ctl.signal, modelTier: $("#twinSmart").checked ? "default" : "quick"});
+    if (ctl.signal.aborted) return;
+    const parts = out.split("\n").map(x=>x.replace(new RegExp("^"+first(who.name)+":\\s*","i"),"").trim()).filter(Boolean).slice(0,8);
+    T.turns.push({role:"assistant", content: parts.join("\n")});
+    for (let i=0;i<parts.length;i++){
+      if (i){ $("#thread").appendChild(typing); $("#thread").scrollTop = 1e9; }
+      await wait(Math.min(2600, 350 + parts[i].length*28));
+      if (ctl.signal.aborted) return;
+      typing.remove(); bubble(parts[i], "them");
+    }
+  } catch(e){ typing.remove(); T.turns.pop(); if (e.code !== "cancelled") sys(aiErr(e)); }
+  finally { if (T.ctl === ctl){ T.busy = false; if (T.queue.length){ const q = T.queue.splice(0); T.queue = []; for (const m of q){ $("#thread").lastElementChild?.remove(); } q.forEach(m => twinSend(m)); } } }
+}
+$("#composer").addEventListener("submit", e => { e.preventDefault(); const v = $("#twinInput").value.trim(); if (!v || !S.stats) return; $("#twinInput").value = ""; twinSend(v); });
+$("#twinWho").addEventListener("change", resetTwin); $("#twinMe").addEventListener("change", resetTwin); $("#twinReset").addEventListener("click", resetTwin);
+
+/* ---------------- ask ---------------- */
+let askCtl = null;
+async function ask(){
+  const q = $("#askInput").value.trim(); if (!q || !S.stats) return;
+  const s = await samplePromise, out = $("#askOut");
+  if (!s){ out.textContent = "Asking needs the Claude viewer. Open this page on claude.ai."; return; }
+  askCtl?.abort(); askCtl = new AbortController(); const ctl = askCtl;
+  out.textContent = "Reading the chat…"; $("#askBtn").disabled = true;
+  try {
+    await s(`Answer a question about this real text chat. Be specific: cite names, dates and short quotes from the messages. Keep it under 200 words, plain text, no markdown headers.\n\nSTATS\n${statsSummary()}\n\nMESSAGES\n${excerpt(90000)}\n\nQUESTION: ${q}`,
+      { signal: ctl.signal, onText: ({text}) => { out.textContent = text; } });
+  } catch(e){ if (e.code !== "cancelled") out.textContent = (e.text ? e.text + "\n\n" : "") + aiErr(e); }
+  finally { if (askCtl === ctl) $("#askBtn").disabled = false; }
+}
+$("#askForm").addEventListener("submit", e => { e.preventDefault(); ask(); });
+
+/* ---------------- loading ---------------- */
+function load(msgs, isSample, srcText){
+  msgs = (msgs||[]).filter(m => m && m.from && isFinite(m.t));
+  const names = new Set(msgs.map(m=>m.from));
+  if (msgs.length < 10 || names.size < 2) throw new Error("Couldn't find enough messages in that file. Check that it's a chat export in one of the listed formats.");
+  S.msgs = msgs; S.isSample = isSample; S.sharedId = null; S.personal = {}; S.personIdx = 0;
+  if (location.hash.startsWith("#r-")) history.replaceState(null, "", location.pathname + location.search); S.stats = analyze(msgs); S.ai = {}; S.fp = hash(srcText || msgs.slice(0,500).map(m=>m.from+m.text).join(""));
+  render();
+  if (!isSample){ $("#loader").hidden = true; scrollTo({top:0}); runInsights(); }
+}
+async function handleFiles(files){
+  $("#loadErr").textContent = "";
+  try { const msgs = await readFiles([...files]); load(msgs, false, msgs.slice(0,800).map(m=>m.t+m.from+m.text).join("")); }
+  catch(e){ $("#loadErr").textContent = e.message || "Couldn't read that file."; }
+}
+$("#openLoad").addEventListener("click", () => { $("#loader").hidden = !$("#loader").hidden; });
+$("#file").addEventListener("change", e => handleFiles(e.target.files));
+const L = $("#loader");
+["dragenter","dragover"].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); L.hidden = false; L.classList.add("drag"); }));
+["dragleave","drop"].forEach(ev => L.addEventListener(ev, () => L.classList.remove("drag")));
+document.addEventListener("drop", e => { e.preventDefault(); L.classList.remove("drag"); if (e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files); });
+$("#analyzePaste").addEventListener("click", () => { $("#loadErr").textContent = ""; const t = $("#paste").value; try { load(parseAny(t), false, t); } catch(e){ $("#loadErr").textContent = e.message; } });
+$("#useSample").addEventListener("click", () => { loadSample(); $("#loader").hidden = true; });
+
+/* ---------------- sample chat (fictional) ---------------- */
+const THREADS = [
+ ["J:Morning! Did you end up going to the farmers market?","M:omg yes","M:i bought way too many peaches","M:like 14 peaches jordan","J:14 is a normal amount if you have a plan.","M:i do not have a plan 💀","J:Peach cobbler. I'll bring vanilla ice cream.","M:deal deal deal"],
+ ["M:are u up","M:i cant sleep","J:Barely. What's going on?","M:just thinking about the interview tmrw","M:what if they ask me about the gap year","J:Then you tell them the truth: you worked, you traveled, you figured out what you want.","J:You're going to be great, honestly.","M:ok ok","M:thank u 🥹"],
+ ["J:Okay I need your honest opinion. Green jacket or the black one?","M:green","M:no question","M:the black one makes u look like a tax auditor","J:Wow. Okay. Green it is.","M:lmaooo i'm right tho"],
+ ["M:JORDAN","M:the raccoon is back","M:he's in the recycling again","J:Is this the same raccoon as last week?","M:same guy. i named him kevin","J:Of course you did haha","J:Tell Kevin he owes us a new bin.","M:kevin answers to no one 😤"],
+ ["J:Running about 10 min late, sorry!","M:no worries","M:i'll grab us a table","M:want the usual","J:Yes please. Oat latte, you're the best.","M:ik 😌"],
+ ["M:did u see the finale","M:i'm actually so upset","J:I just finished it. I can't believe they did that to Theo.","M:right??","M:like what was the point of 3 seasons","J:Honestly the writers owe us an apology.","M:i'm writing a strongly worded tweet"],
+ ["J:Hey, are we still on for Saturday?","M:yesss","M:hiking or brunch","J:Why not both? Trail at 9, brunch after.","M:9 is crazy early but ok","M:for u"],
+ ["M:i'm kinda sad today ngl","J:Hey, what happened?","M:idk just tired","M:work was a lot","J:Want me to come by with takeout? No need to talk if you don't want to.","M:that would be really nice actually","M:thank u","J:On my way in 20."],
+ ["J:Fun fact: octopuses have three hearts.","M:why are u telling me this at 11pm","J:Because you needed to know.","M:ok but that's actually so cool","M:3 hearts and i can barely manage 1 😭"],
+ ["M:we fought abt the dishes again lol","J:Me and you or you and your roommate?","M:me and sam obv","M:i'm not fighting u over dishes","J:Good, because I'd win.","M:u would NOT"],
+ ["J:Hey, you kind of left me hanging last night. I waited at the station for 40 minutes.","M:wait what","M:oh no","M:i thought we said thursday","J:We said Wednesday. I texted to confirm.","M:i'm so sorry","M:i genuinely mixed it up","M:let me make it up to u","J:It's okay. Just felt a bit forgotten, that's all.","M:ur never forgotten 🫶"],
+ ["M:guess who got the job 🎉🎉","J:NO WAY","J:I knew it! Congratulations!!","M:i'm screaming","M:drinks on me friday","J:Absolutely. So proud of you."],
+ ["J:What are you making for the potluck?","M:probably that pasta salad","M:the one with the feta","J:The famous one. Good call.","M:famous is a strong word","M:but yes"],
+ ["M:lol look at this","M:<Media omitted>","J:Haha that dog looks exactly like Kevin.","M:KEVIN COUSIN"],
+ ["J:Can you send me the name of that podcast?","M:the one abt the shipwrecks?","J:Yes, that one.","M:lost at sea i think","M:ep 4 is the best","J:Thanks, I'll start it on my run tomorrow."],
+ ["M:good morning ☀️","J:Good morning! Sleep okay?","M:kinda","M:dreamt i was late for an exam i don't have","J:Classic. Coffee will fix it."],
+ ["M:ok be honest","M:is it weird to text my old boss happy birthday","J:Not weird. Nice, actually. Keep it short.","M:\"happy birthday!! hope ur well\"","J:Perfect. Send it.","M:sent 😬"],
+ ["J:I made the cobbler. It's honestly incredible.","M:SEND PICS","J:<Media omitted>","M:ok chef","M:save me a piece or we're done"]
+];
+function rng(seed){ return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function loadSample(){
+  const r = rng(42), end = new Date(2026, 10, 18), lines = [];
+  const special = {11: 30, 7: 41, 1: 22, 12: 25};
+  for (let day = 70; day >= 0; day--){
+    const d = new Date(end); d.setDate(end.getDate() - day);
+    const n = r() < 0.12 ? 0 : 1 + Math.floor(r()*2.6);
+    const picked = [];
+    for (let k=0;k<n;k++) picked.push(Math.floor(r()*THREADS.length));
+    Object.entries(special).forEach(([ti, dd]) => { if (70 - day === dd) picked.push(+ti); });
+    let h = 8 + Math.floor(r()*4);
+    for (const ti of picked){
+      h = Math.min(23, h + 1 + Math.floor(r()*5)); let mi = Math.floor(r()*40);
+      if (ti === 1 || ti === 8) h = 23;
+      let t = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, mi).getTime();
+      for (const m of THREADS[ti]){
+        t += (m[0]===THREADS[ti][0][0] ? 20e3 : 60e3) + Math.floor(r()*4*60e3);
+        const dt = new Date(t), p = x => String(x).padStart(2,"0");
+        lines.push(`${p(dt.getDate())}/${p(dt.getMonth()+1)}/${dt.getFullYear()}, ${p(dt.getHours())}:${p(dt.getMinutes())} - ${m[0]==="M"?"Maya Ortiz":"Jordan Lee"}: ${m.slice(2)}`);
+      }
+    }
+  }
+  const txt = lines.join("\n");
+  load(parseWhatsApp(txt), true, txt);
+}
+
+/* ---------------- each person ---------------- */
+function renderPersonTabs(){
+  const ppl = S.stats.people.slice(0, 16);
+  if (S.personIdx >= ppl.length) S.personIdx = 0;
+  $("#personTabs").innerHTML = ppl.map((p,i)=>`<button type="button" data-person="${i}" aria-pressed="${i===S.personIdx}"><i class="dot" style="background:${p.color};margin:0"></i>${esc(p.name)}</button>`).join("");
+  renderPerson();
+}
+function renderPerson(){
+  if (!S.stats) return;
+  const st = S.stats, p = st.people[S.personIdx || 0]; if (!p) return;
+  const txtN = Math.max(1, p.n - p.media);
+  const peakH = p.hours.indexOf(Math.max(...p.hours));
+  const mood = (p.pos - p.neg) / (p.pos + p.neg + 4);
+  const rank = st.people.indexOf(p) + 1;
+  const replyTo = [...p.replyTo].sort((a,b)=>b[1]-a[1]).slice(0,3);
+  const ai = (S.ai.b?.people || []).find(x => x.name === p.name || first(x.name||"") === first(p.name));
+  const deep = S.personal?.[p.name];
+  const hmax = Math.max(1, ...p.hours);
+  const spark = `<svg viewBox="0 0 240 48" role="img" style="width:100%;height:auto">${p.hours.map((v,i)=>`<rect x="${i*10+1}" y="${44 - 40*v/hmax}" width="8" height="${Math.max(1,40*v/hmax)}" rx="2" fill="${p.color}" opacity="${0.35+0.65*v/hmax}"/>`).join("")}<text x="1" y="47" font-size="8">12a</text><text x="120" y="47" font-size="8" text-anchor="middle">12p</text><text x="239" y="47" font-size="8" text-anchor="end">11p</text></svg>`;
+  $("#personBox").innerHTML = `<div class="grid g2">
+    <div class="card" style="display:grid;gap:14px;align-content:start">
+      <div style="display:flex;gap:12px;align-items:center"><div class="avatar" style="background:${p.color};width:48px;height:48px;font-size:18px">${esc(initials(p.name))}</div>
+        <div><h3 style="font-size:22px">${esc(p.name)}</h3><div class="muted" style="font-size:13px">${ai ? esc(ai.role) : `#${rank} most active of ${st.people.length}`}</div></div></div>
+      <div class="tiles">
+        <div class="tile"><b>${fmtN(p.n)}</b><span>messages · ${Math.round(p.n/st.total*100)}% of the chat</span></div>
+        <div class="tile"><b>${(p.words/txtN).toFixed(1)}</b><span>words per text</span></div>
+        <div class="tile"><b>${fmtDur(median(p.replies))}</b><span>median reply time</span></div>
+        <div class="tile"><b>${Math.round(p.starts/Math.max(1,st.convs)*100)}%</b><span>of conversations started</span></div>
+        <div class="tile"><b>${(p.bursts.reduce((a,b)=>a+b,0)/Math.max(1,p.bursts.length)).toFixed(1)}</b><span>texts in a row</span></div>
+        <div class="tile"><b>${mood > .15 ? "Bright" : mood < -.05 ? "Heavy" : "Even"}</b><span>overall tone</span></div>
+      </div>
+      <div><div class="eyebrow" style="margin-bottom:4px">When ${esc(first(p.name))} texts · peak ${hourLabel(peakH)}</div>${spark}</div>
+      ${replyTo.length && st.people.length > 2 ? `<div><div class="eyebrow" style="margin-bottom:6px">Replies to most</div><div class="chips">${replyTo.map(([n,c])=>`<span class="chip">${esc(n)} · ${c}</span>`).join("")}</div></div>` : ""}
+      ${p.topEmoji.length ? `<div><div class="eyebrow" style="margin-bottom:6px">Go-to emoji</div><div style="font-size:24px">${p.topEmoji.map(e=>e[0]).join(" ")}</div></div>` : ""}
+      ${p.signature.length ? `<div><div class="eyebrow" style="margin-bottom:6px">Words that are so them</div><div class="chips">${p.signature.map(w=>`<span class="chip">${esc(w)}</span>`).join("")}</div></div>` : ""}
+    </div>
+    <div class="card" style="display:grid;gap:14px;align-content:start">
+      ${ai ? `<div class="person-card">
+        <div class="kv"><span class="eyebrow">Love language</span><b>${esc(ai.loveLanguage?.primary)}</b><span class="muted" style="font-size:13px">${esc(ai.loveLanguage?.evidence)}</span></div>
+        <div class="kv"><span class="eyebrow">Attachment style</span><b>${esc(ai.attachment?.style)}</b><span class="muted" style="font-size:13px">${esc(ai.attachment?.evidence)}</span></div>
+        <div class="kv"><span class="eyebrow">Superpower</span><span>${esc(ai.superpower)}</span></div></div>` : ""}
+      <div style="display:grid;gap:8px"><span class="eyebrow">Claude's read on ${esc(first(p.name))}</span>
+        ${deep ? `<div class="answer">${esc(deep)}</div>` : S.msgs.length ? `<p class="muted">A personal write-up: how ${esc(first(p.name))} shows up in this chat, what they care about, their running bits, and how others respond to them.</p><button class="primary" data-deep style="justify-self:start" id="deepBtn">Write ${esc(first(p.name))}'s analysis</button><div class="answer" id="deepOut"></div>` : `<p class="muted">Not written for this report yet.</p>`}
+      </div>
+    </div></div>`;
+}
+let deepCtl = null;
+async function deepDive(){
+  const p = S.stats.people[S.personIdx || 0], s = await samplePromise, out = $("#deepOut"), btn = $("#deepBtn");
+  if (!s){ out.textContent = "This needs the Claude viewer. Open the page on claude.ai."; return; }
+  deepCtl?.abort(); deepCtl = new AbortController(); const ctl = deepCtl, name = p.name;
+  btn.disabled = true; out.textContent = "Reading their messages…";
+  try {
+    const {text} = await s(`Write a personal analysis of ${name} based on this real text chat. Cover: how they text, what they care about and talk about most, their humor and running bits, how they treat the others and how the others respond to them, and one thing they might not realize about themselves. Cite specific moments with dates and short quotes. Warm but honest. About 180 words, plain text, short paragraphs, no headers.\n\nSTATS\n${statsSummary()}\n\nMESSAGES\n${excerpt(80000)}`,
+      { signal: ctl.signal, onText: ({text}) => { if ((S.stats.people[S.personIdx||0]||{}).name === name) out.textContent = text; } });
+    S.personal[name] = text;
+    if ((S.stats.people[S.personIdx||0]||{}).name === name) renderPerson();
+  } catch(e){ if (e.code !== "cancelled"){ out.textContent = (e.text ? e.text+"\n\n" : "") + aiErr(e); btn.disabled = false; } }
+}
+
+/* ---------------- sharing ---------------- */
+const APP_URL = "https://claude.ai/artifact/BABxxjeK87iPyU8xG88fD9";
+let dbP = null;
+const getDb = () => dbP ??= (async () => { try { return window.claude ? await window.claude.use("db") : null; } catch { return null; } })();
+function snapshot(){
+  const st = S.stats, md = p => median(p.replies);
+  return { v:1, fp:S.fp, stats:{ convs:st.convs, streak:st.streak, first:st.first, last:st.last, activeDays:st.activeDays, total:st.total, media:st.media,
+      busiest:{t:st.busiest.t, n:st.busiest.n}, topEmoji:st.topEmoji, heat:st.heat,
+      days:[...st.days.values()].map(d=>[d.t, d.n, [...d.by]]),
+      weeks:[...st.weeks].map(([k,W])=>[k, [...W.by], [...W.mood]]),
+      people: st.people.slice(0, 30).map(p => ({ name:p.name, n:p.n, words:p.words, media:p.media, starts:p.starts, replyMed:md(p), burstAvg:p.bursts.reduce((a,b)=>a+b,0)/Math.max(1,p.bursts.length),
+        night:p.night, lowerStart:p.lowerStart, letterStart:p.letterStart, questions:p.questions, caps:p.caps, emojiMsgs:p.emojiMsgs, pos:p.pos, neg:p.neg,
+        topWords:p.topWords, topEmoji:p.topEmoji, signature:p.signature, hours:p.hours, replyTo:[...p.replyTo].sort((a,b)=>b[1]-a[1]).slice(0,5), color:p.color })) },
+    ai: { a: S.ai.a || null, b: S.ai.b || null }, personal: S.personal || {} };
+}
+function hydrate(snap){
+  const x = snap.stats;
+  const people = x.people.map((p,i) => ({ ...p, idx:i, replies: p.replyMed!=null ? [p.replyMed] : [], bursts:[p.burstAvg], tok:new Map(p.topWords), emoji:new Map(p.topEmoji), wordCounts:[], replyTo:new Map(p.replyTo) }));
+  const days = new Map(x.days.map(([t,n,by]) => [dayKey(t), {t, n, by:new Map(by)}]));
+  const weeks = new Map(x.weeks.map(([k,by,mood]) => [k, {by:new Map(by), mood:new Map(mood)}]));
+  return { ...x, people, days, weeks };
+}
+function reportTitle(){ const ppl = S.stats.people; return ppl.length === 2 ? `${ppl[0].name} & ${ppl[1].name}` : `${first(ppl[0].name)}, ${first(ppl[1].name)} + ${ppl.length-2} others`; }
+async function share(){
+  const box = $("#shareOut"); box.hidden = false;
+  if (S.sharedId){ showLink(S.sharedId); return; }
+  const db = await getDb();
+  if (!db){ box.innerHTML = `<span class="muted">Sharing needs the Claude viewer while signed in. Open this page on claude.ai.</span>`; return; }
+  if (S.isSample){ box.innerHTML = `<span class="muted">Load your own chat first, then share its report.</span>`; return; }
+  box.innerHTML = `<span class="muted">Saving the report…</span>`;
+  try {
+    const id = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+    const snap = snapshot();
+    await db.collection("reports").doc(id).set({ created: Date.now(), title: reportTitle(), total: S.stats.total, people: S.stats.people.length, data: JSON.stringify(snap) });
+    S.sharedId = id; S.sharedAt = Date.now(); showLink(id); loadGallery();
+  } catch(e){ box.innerHTML = `<span class="err">${e.code === "not_granted" ? "You don't have permission to share here. Ask the owner for edit or interact access." : "Couldn't save the report. Try again."}</span>`; }
+}
+function showLink(id){
+  const url = (APP_URL || "") + "#r-" + id;
+  $("#shareOut").innerHTML = `<span><b>Anyone with this link can see the report.</b> The messages themselves aren't shared.</span><input type="text" id="shareUrl" readonly value="${esc(url)}"><button type="button" id="copyLink">Copy link</button>`;
+  $("#copyLink").onclick = async () => { try { await navigator.clipboard.writeText(url); $("#copyLink").textContent = "Copied"; } catch { $("#shareUrl").select(); } };
+}
+async function openShared(id){
+  const db = await getDb();
+  if (!db){ $("#sharedBanner").hidden = false; $("#sharedBanner").textContent = "Shared reports open on claude.ai while signed in."; return; }
+  try {
+    const snap = await db.doc("reports/" + id).get();
+    if (!snap.exists){ $("#sharedBanner").hidden = false; $("#sharedBanner").textContent = "That shared report doesn't exist anymore."; return; }
+    const d = snap.data(), data = JSON.parse(d.data);
+    S.msgs = []; S.isSample = false; S.stats = hydrate(data); S.fp = data.fp; S.ai = { state: data.ai.a ? "done" : "", a: data.ai.a, b: data.ai.b };
+    S.personal = data.personal || {}; S.personIdx = 0; S.sharedId = id; S.sharedAt = d.created;
+    render(); scrollTo({top:0});
+  } catch { $("#sharedBanner").hidden = false; $("#sharedBanner").textContent = "Couldn't open that shared report."; }
+}
+async function loadGallery(){
+  const db = await getDb(), g = $("#glist");
+  if (!db){ g.innerHTML = `<span class="muted">Shared reports show up here when this page is open on claude.ai.</span>`; return; }
+  try {
+    const qs = await db.collection("reports").orderBy("created", "desc").limit(40).get();
+    g.innerHTML = qs.empty ? `<span class="muted">No shared reports yet. Load a chat and press Share report to add the first one.</span>`
+      : qs.docs.map(doc => { const d = doc.data(); return `<a href="#r-${esc(doc.id)}"><b>${esc(d.title)}</b><span class="muted mono">${fmtN(d.total||0)} msgs · ${d.created ? fmtDate(d.created) : ""}</span></a>`; }).join("");
+  } catch { g.innerHTML = `<span class="muted">Couldn't load shared reports right now.</span>`; }
+}
+$("#shareBtn").addEventListener("click", share);
+function route(){ const m = location.hash.match(/^#r-([A-Za-z0-9]+)$/); if (m && m[1] !== S.sharedId) openShared(m[1]); }
+addEventListener("hashchange", route);
+
+loadSample();
+route();
+loadGallery();
+</script>
+
+</body>
+</html>
